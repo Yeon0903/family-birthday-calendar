@@ -81,10 +81,10 @@ document.addEventListener('visibilitychange',()=>{
 async function acceptBridgeMessage(event) {
   if (!auth || !cfg.appsScriptUrl) return;
 
-  // 실제 로그인 iframe에서 보낸 메시지만 수신
-  if (!authFrame || event.source !== authFrame.contentWindow) {
-    return;
-  }
+  // Apps Script HTML Service는 로그인 화면을 내부 iframe에서 실행할 수 있어
+  // event.source가 바깥쪽 authFrame.contentWindow와 같지 않을 수 있습니다.
+  // 따라서 창 객체 동일성 검사는 하지 않고, 발신 출처 및 메시지 형식을 확인합니다.
+  if (!authFrame || !authFrame.isConnected) return;
 
   // Google Apps Script에서 전달한 메시지만 허용
   const allowedOrigin =
@@ -99,7 +99,7 @@ async function acceptBridgeMessage(event) {
     !data ||
     data.app !== 'family-birthday-v2' ||
     data.type !== 'login' ||
-    typeof data.token !== 'string'
+    (typeof data.token !== 'string' || data.token.length > 8192)
   ) {
     return;
   }
