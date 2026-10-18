@@ -34,8 +34,41 @@ function message(s){state.msg=s;render()}
 async function reload(){if(!db||!state.user)return;try{const snapshot=await db.collection('birthdays').get();state.records=snapshot.docs.map(d=>({id:d.id,...d.data()}));state.records.sort((a,b)=>a.name.localeCompare(b.name,'ko'));state.msg='';render()}catch(err){if(err.code==='permission-denied'){await signout();state.msg='접근 권한이 만료됐어요. 다시 로그인해 주세요.';render();}else message('생일 목록을 불러오지 못했어요: '+err.message)}}
 async function afterLogin(){if(!auth.currentUser){state.user=null;render();return;}const uid=auth.currentUser.uid;const entry=Object.entries(expectedRoleUids).find(([role,id])=>id===uid);if(!entry){await auth.signOut();state.user=null;message('허용되지 않은 로그인 계정입니다.');return;}state.user=auth.currentUser;state.role=entry[0];state.page='calendar';state.msg='';await reload()}
 async function signout(){if(auth)await auth.signOut();state.user=null;state.records=[];state.msg='';render()}
-async function acceptBridgeMessage(event){if(!auth||!cfg.appsScriptUrl)return;if(!/^https:\/\/[a-zA-Z0-9-]+\.googleusercontent\.com$/.test(event.origin) && event.origin!=='https://script.google.com')return;const data=event.data;if(!data||data.app!=='family-birthday-v2'||data.type!=='login'||typeof data.token!=='string')return;try{await auth.signInWithCustomToken(data.token);await afterLogin()}catch(err){message('로그인 연결 실패: '+err.message)}}
-window.addEventListener('message',acceptBridgeMessage);
+async function acceptBridgeMessage(event) {
+  if (!auth || !cfg.appsScriptUrl) return;
+
+  // 실제 로그인 iframe에서 보낸 메시지만 수신
+  if (!authFrame || event.source !== authFrame.contentWindow) {
+    return;
+  }
+
+  // Google Apps Script에서 전달한 메시지만 허용
+  const allowedOrigin =
+    event.origin === 'https://script.google.com' ||
+    /^https:\/\/[a-zA-Z0-9-]+\.googleusercontent\.com$/.test(event.origin);
+
+  if (!allowedOrigin) return;
+
+  const data = event.data;
+
+  if (
+    !data ||
+    data.app !== 'family-birthday-v2' ||
+    data.type !== 'login' ||
+    typeof data.token !== 'string'
+  ) {
+    return;
+  }
+
+  try {
+    await auth.signInWithCustomToken(data.token);
+    await afterLogin();
+  } catch (err) {
+    message('로그인 연결 실패: ' + err.message);
+  }
+}
+
+window.addEventListener('message', acceptBridgeMessage);
 function rangeMove(step){let d=new Date(state.year,state.month+step,1);state.year=d.getFullYear();state.month=d.getMonth();state.selected=1;render()}
 async function saveBirthday(e){e.preventDefault();if(!admin()||!db)return;const f=new FormData(e.target),name=String(f.get('name')).trim(),year=+f.get('year'),month=+f.get('month'),day=+f.get('day'),type=String(f.get('type')),leap=!!f.get('leap');if(!name||year<1900||year>2050||month<1||month>12||day<1||day>31||!Number.isInteger(year)||!Number.isInteger(month)||!Number.isInteger(day)){message('생년월일을 확인해 주세요.');return;}if(type==='solar'){const d=new Date(year,month-1,day);if(d.getFullYear()!==year||d.getMonth()+1!==month||d.getDate()!==day){message('존재하지 않는 양력 날짜입니다.');return;}}else if(type!=='lunar'||day>30){message('음력 날짜를 확인해 주세요.');return;}const obj={name,birth_year:year,birth_month:month,birth_day:day,calendar_type:type,is_leap:type==='lunar'&&leap};try{if(state.edit?.id)await db.collection('birthdays').doc(state.edit.id).update(obj);else await db.collection('birthdays').add(obj);state.modal=false;state.edit=null;state.msg='';await reload()}catch(err){message('저장 실패: '+err.message)}}
 async function removeBirthday(){if(!admin()||!state.edit?.id||!confirm('이 생일을 삭제할까요?'))return;try{await db.collection('birthdays').doc(state.edit.id).delete();state.modal=false;state.edit=null;await reload()}catch(err){message('삭제 실패: '+err.message)}}
