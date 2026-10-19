@@ -19,7 +19,7 @@
   .topactions .iconbtn { padding-left: 11px; padding-right: 11px; }
   .calendar { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
   .calendarwrap { padding: 10px 6px 12px; }
-  .day { min-width: 0; min-height: clamp(70px, 22vw, 88px); padding: 6px 1px; }
+  .day { min-width: 0; min-height: clamp(58px, 18vw, 72px); padding: 6px 1px; }
   .event { font-size: clamp(8px, 2.2vw, 9px); }
   .event small { font-size: clamp(8px, 2.2vw, 9px); }
 }
